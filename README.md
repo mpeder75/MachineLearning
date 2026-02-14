@@ -9,7 +9,7 @@ Projektet er organiseret efter sessions, hvor hver session indeholder de tilhør
 ## Moduler
 
 ### Module 1: TensorFlow Basics
-- Lab 2.1:
+- Opave: Lab 2.1:
 2.1 Install and run TensorFlow.js in the browser
 In this lab you will install TensorFlow on a simple single page web application.
 
@@ -31,7 +31,7 @@ If you are an experienced JavaScript (or TypeScript) developer, you might typica
 
 Instead of using the script tag above, install via npm or yarn as listed on the official TensorFlow.js setup page. Integrate into your typical build process. Run the verification steps (from step 6 above) to ensure it is working.
 
-- Lab 2.2:
+- Opgave: Lab 2.2:
 2.2 Install and run TensorFlow.js on Node.js (check for updates and new versions)
 In this lab you will install TensorFlow.js in a Node.js project and run sample code on the command line. If you never plan to run TensorFlow.js in Node.js, feel free to skip this lab.
 
