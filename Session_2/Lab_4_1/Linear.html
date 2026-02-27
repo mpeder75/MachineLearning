@@ -80,8 +80,7 @@
         const min = tensor.min();
         const normalisedTensor = tensor.sub(min).div(max.sub(min));
         return { tensor: normalisedTensor, min, max };
-      }
-      
+      }      
 
       function denormalise(tensor, min, max) {
         return tensor.mul(max.sub(min)).add(min);
