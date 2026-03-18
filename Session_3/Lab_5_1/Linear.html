@@ -47,12 +47,10 @@
           const normalisedLabel = normalize(labelTensor);
 
           const [trainingFeatures, testingFeatures] = tf.split(
-            normalisedFeature.tensor,
-            2,
+            normalisedFeature.tensor, 2,
           );
           const [trainingLabels, testingLabels] = tf.split(
-            normalisedLabel.tensor,
-            2,
+            normalisedLabel.tensor, 2,
           );
 
           return {
