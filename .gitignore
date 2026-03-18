@@ -19,6 +19,10 @@ out/
 Thumbs.db
 desktop.ini
 
+# ===== Local Dev Tools =====
+local-CLAUDE.md
+*CLAUDE.md
+
 # IDE filer
 .vscode/
 .idea/
