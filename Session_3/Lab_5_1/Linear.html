@@ -17,22 +17,28 @@
       async function run() {
         await tf.ready();
 
+        // Import dat fra csv
         const houseSalesDataset = tf.data.csv("/kc_house_data.csv");
 
+        // Transformere data til et array af objekter med x og y værdier
         const pointsDataset = houseSalesDataset.map((record) => ({
           x: record.sqft_living,
           y: record.price,
         }));
 
+        // Konvertere dataset til array og fjerne sidste element hvis det er uliget, 
+        // da det ellers vil give problemer når vi skal splitte data i trænings og test data
         const points = await pointsDataset.toArray();
         if (points.length % 2 !== 0) {
           points.pop();
         }
 
+        // Shuffle data for at sikre at trænings og test data er repræsentative for hele datasættet
         tf.util.shuffle(points);
 
         plot(points, "Square Feet");
 
+        // Brug tf.tidy til at håndtere hukommelse og undgå memory leaks ved at automatisk rydde op i tensorer, der ikke længere er nødvendige
         const result = tf.tidy(() => {
           const featureValues = points.map((p) => p.x);
           const featureTensor = tf.tensor2d(featureValues, [
@@ -63,6 +69,7 @@
 
         console.log(tf.memory());
 
+        // Opret model - Session 3 Lab 5.1
         const model = createModel();
         
         model.summary();
@@ -105,7 +112,6 @@
           }),
         );
         
-        // Stochastic Gradient Descent optimizer med læringsrate på 0.1
         const optimizer = tf.train.sgd(0.1);
 
         model.compile({
