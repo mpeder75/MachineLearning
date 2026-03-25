@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TensorFlow.js Frontend Lab</title>
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@latest"></script>
+
+    <style>
+      body {
+        display: flex;
+        min-height: 100vh;
+        flex-direction: column;
+      }
+      main {
+        flex: 1 0 auto;
+      }
+      pre {
+        padding: 10px;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="section no-pad-bot" id="index-banner">
+        <div class="container">
+          <h5 class="header center blue-text small">
+            Linear regression with TensorFlow.js
+          </h5>
+          <div class="row center">
+            <h6 class="header col s12 light">
+              Train a model to predict house price from living space.
+            </h6>
+          </div>
+        </div>
+      </div>
+
+      <div class="section no-pad-bot light-blue lighten-4">
+        <div class="container">
+          <div class="row center">
+            <br />
+            <button
+              id="toggle-button"
+              class="waves-effect waves-light light-blue btn-small"
+              onclick="toggleVisor()"
+            >
+              Toggle Visor
+            </button>
+            <br /><br />
+          </div>
+        </div>
+      </div>
+
+      <div class="container">
+        <div class="section">
+          <div class="row">
+            <div class="col s12 m6">
+              <div class="icon-block">
+                <h3 class="center light-blue-text">
+                  <i class="material-icons" style="font-size: 2em">build</i>
+                </h3>
+                <h5 class="center">Train & Test</h5>
+
+                <p class="light"></p>
+
+                <div>
+                  <p><label>Training status:</label></p>
+                  <pre
+                    class="grey lighten-4"
+                    style="overflow-x: auto"
+                  ><em id="model-status">Loading data...</em></pre>
+
+                  <p><label>Testing status:</label></p>
+                  <pre
+                    class="grey lighten-4"
+                    style="overflow-x: auto"
+                  ><em id="testing-status">Not yet tested</em></pre>
+
+                  <button
+                    autocomplete="off"
+                    id="train-button"
+                    class="waves-effect light-blue waves-light btn"
+                    disabled
+                    onclick="train()"
+                  >
+                    Train New Model
+                  </button>
+                  <button
+                    autocomplete="off"
+                    id="test-button"
+                    class="waves-effect light-blue waves-light btn"
+                    disabled
+                    onclick="test()"
+                  >
+                    Test Model
+                  </button>
+                </div>
+                <br />
+
+                <div>
+                  <button
+                    autocomplete="off"
+                    id="load-button"
+                    class="waves-effect light-blue waves-light btn-small"
+                    disabled
+                    onclick="load()"
+                  >
+                    Load Model
+                  </button>
+                  <button
+                    autocomplete="off"
+                    id="save-button"
+                    class="waves-effect light-blue waves-light btn-small"
+                    disabled
+                    onclick="save()"
+                  >
+                    Save Model
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="col s12 m6">
+              <div class="icon-block">
+                <h3 class="center light-blue-text">
+                  <i class="material-icons" style="font-size: 2em">timeline</i>
+                </h3>
+                <h5 class="center">Predict</h5>
+
+                <div class="input-field">
+                  <input
+                    type="number"
+                    id="prediction-input"
+                    placeholder="2000"
+                  />
+                  <label class="active">Square feet of living space</label>
+                </div>
+
+                <button
+                  autocomplete="off"
+                  id="predict-button"
+                  class="waves-effect light-blue waves-light btn"
+                  disabled
+                  onclick="predict()"
+                >
+                  Predict house price
+                </button>
+                <p><strong id="prediction-output"></strong></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+    <script>
+      /**
+       * Her skal dine funktioner (train, test, load, save, predict, toggleVisor) ligge.
+       * Husk at aktivere knapperne (remove 'disabled' attribute) når data er klar.
+       */
+      let points;
+      let model;
+      let normalisedFeature;
+      let normalisedLabel;
+      let trainingFeatureTensor;
+      let testingFeatureTensor;
+      let trainingLabelTensor;
+      let testingLabelTensor;
+
+      async function loadData() {
+        const houseSalesDataset = tf.data.csv("kc_house_data.csv");
+
+        pointsDataset = houseSalesDataset.map((record) => ({
+          x: record.sqft_living,
+          y: record.price,
+        }));
+
+        points = await pointsDataset.toArray();
+        if (points.length % 2 !== 0) points.pop();
+        tf.util.shuffle(points);
+        plot(points, "Square Feet");
+
+        const result = tf.tidy(() => {
+          const featureValues = points.map((p) => p.x);
+          const featureTensor = tf.tensor2d(featureValues, [
+            featureValues.length,
+            1,
+          ]);
+          const labelValues = points.map((p) => p.y);
+          const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
+
+          normalisedFeature = normalise(featureTensor);
+          normalisedLabel = normalise(labelTensor);
+
+          const [trainingFeatures, testingFeatures] = tf.split(
+            normalisedFeature.tensor,
+            2,
+          );
+          const [trainingLabels, testingLabels] = tf.split(
+            normalisedLabel.tensor,
+            2,
+          );
+
+          return {
+            trainingFeatures,
+            testingFeatures,
+            trainingLabels,
+            testingLabels,
+          };
+        });
+
+        trainingFeatureTensor = result.trainingFeatures;
+        testingFeatureTensor = result.testingFeatures;
+        trainingLabelTensor = result.trainingLabels;
+        testingLabelTensor = result.testingLabels;
+
+        document.getElementById("train-button").disabled = false;
+        document.getElementById("load-button").disabled = false;
+        document.getElementById("model-status").innerText = "Data loaded";
+      }
+      loadData();
+
+      // Funktion der visualiserer data i scatter plot
+      async function plot(
+        pointsArray,
+        featureName,
+        predictedPointsArray = null,
+      ) {
+        const values = [pointsArray];
+        const series = ["original"];
+        if (Array.isArray(predictedPointsArray)) {
+          values.push(predictedPointsArray);
+          series.push("predicted");
+        }
+        tfvis.render.scatterplot(
+          { name: `${featureName} vs House Price` },
+          { values, series },
+          {
+            xLabel: featureName,
+            yLabel: "Price",
+          },
+        );
+      }
+
+      async function plotPredictionLine() {
+        const [xs, ys] = tf.tidy(() => {
+          const normalisedXs = tf.linspace(0, 1, 100);
+          const normalisedYs = model.predict(normalisedXs.reshape([100, 1]));
+          const xs = denormalise(
+            normalisedXs,
+            normalisedFeature.min,
+            normalisedFeature.max,
+          );
+          const ys = denormalise(
+            normalisedYs,
+            normalisedLabel.min,
+            normalisedLabel.max,
+          );
+          return [xs.dataSync(), ys.dataSync()];
+        });
+        const predictedPoints = Array.from(xs).map((val, i) => {
+          return { x: val, y: ys[i] };
+        });
+        await plot(points, "Square feet", predictedPoints);
+      }
+
+      // Funktion der træner model ved at kalde model.fit med trænings data og antal epochs
+      function createModel() {
+        const model = tf.sequential();
+
+        model.add(
+          tf.layers.dense({
+            inputDim: 1,
+            units: 1,
+            activation: "linear",
+            useBias: true,
+          }),
+        );
+
+        const optimizer = tf.train.sgd(0.1);
+
+        model.compile({
+          loss: "meanSquaredError",
+          optimizer,
+        });
+
+        return model;
+      }
+
+      function trainModel(model, trainingFeatureTensor, trainingLabelTensor) {
+        const { onBatchEnd, onEpochEnd } = tfvis.show.fitCallbacks(
+          { name: "Training Performance" },
+          ["loss"],
+        );
+
+        return model.fit(trainingFeatureTensor, trainingLabelTensor, {
+          epochs: 20,
+          shuffle: true,
+          callbacks: {
+            //onBatchEnd,
+            onEpochEnd,
+            onEpochBegin: function () {
+              tfvis.show.layer(
+                { name: `Layer 1` },
+                model.getLayer(undefined, 0),
+              );
+              plotPredictionLine();
+            },
+          },
+        });
+      }
+
+      function testModel(model, testingFeatureTensor, testingLabelTensor) {
+        const lossTensor = model.evaluate(
+          testingFeatureTensor,
+          testingLabelTensor,
+        );
+        console.log(lossTensor);
+        const loss = lossTensor.dataSync();
+        console.log(`Testing Loss: ${loss}`);
+        document.getElementById("testing-status").innerText =
+          `Testing Loss: ${loss}`;
+      }
+
+      // Funktion der normalizere data ved at trække middelværdien fra og dividere med standardafvigelsen
+      function normalise(tensor, previousMin = null, previousMax = null) {
+        const min = previousMin || tensor.min();
+        const max = previousMax || tensor.max();
+        const normalisedTensor = tensor.sub(min).div(max.sub(min));
+        return {
+          tensor: normalisedTensor,
+          min,
+          max,
+        };
+      }
+
+      // Funktion der denormalisere data ved at gange med standardafvigelsen og lægge middelværdien til
+      function denormalise(tensor, min, max) {
+        return tensor.mul(max.sub(min)).add(min);
+      }
+
+      function toggleVisor() {
+        tfvis.visor().toggle();
+      }
+
+      async function train() {
+        model = createModel();
+        await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
+        await plotPredictionLine();
+        document.getElementById("model-status").innerText = "Training complete";
+        document.getElementById("test-button").disabled = false;
+        document.getElementById("predict-button").removeAttribute("disabled");
+      }
+
+      async function test() {
+        await testModel(model, testingFeatureTensor, testingLabelTensor);
+        document.getElementById("predict-button").disabled = false;
+      }
+
+      async function load() {
+        model = await tf.loadLayersModel("localstorage://house-price-model");
+        await plotPredictionLine();
+        document.getElementById("predict-button").removeAttribute("disabled");
+        document.getElementById("test-button").disabled = false;
+        document.getElementById("save-button").disabled = false;
+        document.getElementById("model-status").innerText = "Model loaded";
+      }
+
+      async function save() {
+        await model.save("localstorage://house-price-model");
+        document.getElementById("model-status").innerText = "Model saved";
+      }
+      function predict() {
+        const predictionInput = parseInt(
+          document.getElementById("prediction-input").value,
+        );
+        if (isNaN(predictionInput)) {
+          alert("Please enter a valid number");
+        } else {
+          tf.tidy(() => {
+            const inputTensor = tf.tensor1d([predictionInput]);
+            const normalisedInput = normalise(
+              inputTensor,
+              normalisedFeature.min,
+              normalisedFeature.max,
+            );
+
+            const normalisedOutputTensor = model.predict(
+              normalisedInput.tensor,
+            );
+
+            const outputTensor = denormalise(
+              normalisedOutputTensor,
+              normalisedLabel.min,
+              normalisedLabel.max,
+            );
+            const outputValue = outputTensor.dataSync()[0];
+            document.getElementById("prediction-output").innerHTML =
+              `The predicted house price is: <br />` +
+              `<span style="font-size:2em">\$${(outputValue / 1000).toFixed(0) * 1000}</span>`;
+          });
+        }
+      }
+    </script>
+  </body>
+</html>
