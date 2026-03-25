@@ -189,10 +189,13 @@
           y: record.price,
         }));
 
-        points = await pointsDataset.toArray();
+        
+      points = await pointsDataset.toArray();
         if (points.length % 2 !== 0) points.pop();
         tf.util.shuffle(points);
+        
         plot(points, "Square Feet");
+        
 
         const result = tf.tidy(() => {
           const featureValues = points.map((p) => p.x);
@@ -203,8 +206,8 @@
           const labelValues = points.map((p) => p.y);
           const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
 
-          normalisedFeature = normalise(featureTensor);
-          normalisedLabel = normalise(labelTensor);
+          const normalisedFeature = normalise(featureTensor);
+          const normalisedLabel = normalise(labelTensor);
 
           const [trainingFeatures, testingFeatures] = tf.split(
             normalisedFeature.tensor,
@@ -220,9 +223,13 @@
             testingFeatures,
             trainingLabels,
             testingLabels,
+            normalisedFeature,
+            normalisedLabel,
           };
         });
 
+        normalisedFeature = result.normalisedFeature;
+        normalisedLabel = result.normalisedLabel;
         trainingFeatureTensor = result.trainingFeatures;
         testingFeatureTensor = result.testingFeatures;
         trainingLabelTensor = result.trainingLabels;
@@ -240,8 +247,11 @@
         featureName,
         predictedPointsArray = null,
       ) {
-        const values = [pointsArray];
+        //const values = [pointsArray];
+        const values = [pointsArray.slice(0,1000)];
+
         const series = ["original"];
+      
         if (Array.isArray(predictedPointsArray)) {
           values.push(predictedPointsArray);
           series.push("predicted");
@@ -272,6 +282,7 @@
           );
           return [xs.dataSync(), ys.dataSync()];
         });
+        // prediction points
         const predictedPoints = Array.from(xs).map((val, i) => {
           return { x: val, y: ys[i] };
         });
@@ -285,13 +296,32 @@
         model.add(
           tf.layers.dense({
             inputDim: 1,
-            units: 1,
-            activation: "linear",
+            units: 5,
+            activation: "sigmoid",
             useBias: true,
           }),
         );
 
-        const optimizer = tf.train.sgd(0.1);
+        model.add(
+          tf.layers.dense({
+            //inputDim: 1,
+            units: 5,
+            activation: "sigmoid",
+            useBias: true,
+          }),
+        );
+
+        model.add(
+          tf.layers.dense({
+            // inputDim: 1,
+            units: 1,
+            activation: "sigmoid",
+            useBias: true,
+          }),
+        );
+
+        //const optimizer = tf.train.sgd(0.1);
+        const optimizer = tf.train.adam();
 
         model.compile({
           loss: "meanSquaredError",
@@ -307,8 +337,9 @@
           ["loss"],
         );
 
+
         return model.fit(trainingFeatureTensor, trainingLabelTensor, {
-          epochs: 20,
+          epochs: 100,
           shuffle: true,
           callbacks: {
             //onBatchEnd,
@@ -322,6 +353,16 @@
             },
           },
         });
+      }
+
+      async function plotParams(weight, bias) {
+        model.getLayer(null, 0).setWeights([
+          tf.tensor2d([[weight]]), // Kernel (input multiplier)
+          tf.tensor1d([bias]), // Bias
+        ]);
+        await plotPredictionLine();
+        const layer = model.getLayer(undefined, 0);
+        tfvis.show.layer({ name: "Layer 1" }, layer);
       }
 
       function testModel(model, testingFeatureTensor, testingLabelTensor) {
@@ -363,6 +404,7 @@
         await plotPredictionLine();
         document.getElementById("model-status").innerText = "Training complete";
         document.getElementById("test-button").disabled = false;
+        document.getElementById("save-button").disabled = false;
         document.getElementById("predict-button").removeAttribute("disabled");
       }
 
@@ -373,6 +415,7 @@
 
       async function load() {
         model = await tf.loadLayersModel("localstorage://house-price-model");
+        console.log(model);
         await plotPredictionLine();
         document.getElementById("predict-button").removeAttribute("disabled");
         document.getElementById("test-button").disabled = false;
@@ -384,6 +427,7 @@
         await model.save("localstorage://house-price-model");
         document.getElementById("model-status").innerText = "Model saved";
       }
+
       function predict() {
         const predictionInput = parseInt(
           document.getElementById("prediction-input").value,

@@ -18,6 +18,7 @@
         await tf.ready();
 
         const houseSalesDataset = tf.data.csv("/kc_house_data.csv");
+        await plot(points, "Square feet", predictedPoints);
 
         console.log(tf.memory());
 
