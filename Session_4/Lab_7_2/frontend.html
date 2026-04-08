@@ -168,28 +168,31 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
     <script>
-      let points;
       let model;
-      let normalisedFeature;
-      let normalisedLabel;
       let trainingFeatureTensor;
       let testingFeatureTensor;
       let trainingLabelTensor;
       let testingLabelTensor;
 
+      // Lab 7.2: globals til normalisering (bruges i predict og plotPredictionLine)
+      let normalisedFeature;
+      let normalisedLabel;
+
+      // Lab 7.2: points som global variabel (bruges i plotPredictionLine)
+      let points;
+
       async function loadData() {
         const houseSalesDataset = tf.data.csv("kc_house_data.csv");
 
-        // Rettet: const tilføjet
         const pointsDataset = houseSalesDataset.map((record) => ({
           x: record.sqft_living,
           y: record.price,
         }));
 
+        // Lab 7.2: fjernet const så den globale variabel bruges
         points = await pointsDataset.toArray();
         if (points.length % 2 !== 0) points.pop();
         tf.util.shuffle(points);
-
         plot(points, "Square Feet");
 
         const result = tf.tidy(() => {
@@ -201,15 +204,16 @@
           const labelValues = points.map((p) => p.y);
           const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
 
-          const normalisedFeature = normalise(featureTensor);
-          const normalisedLabel = normalise(labelTensor);
+          // Lab 7.2: gemmer normaliserede tensors med min/max i globale variabler
+          const normFeature = normalise(featureTensor);
+          const normLabel = normalise(labelTensor);
 
           const [trainingFeatures, testingFeatures] = tf.split(
-            normalisedFeature.tensor,
+            normFeature.tensor,
             2,
           );
           const [trainingLabels, testingLabels] = tf.split(
-            normalisedLabel.tensor,
+            normLabel.tensor,
             2,
           );
 
@@ -218,13 +222,21 @@
             testingFeatures,
             trainingLabels,
             testingLabels,
-            normalisedFeature,
-            normalisedLabel,
+            normFeature,
+            normLabel,
           };
         });
 
-        normalisedFeature = result.normalisedFeature;
-        normalisedLabel = result.normalisedLabel;
+        // Lab 7.2: gem min/max uden for tidy så de ikke bliver ryddet op
+        normalisedFeature = {
+          min: result.normFeature.min,
+          max: result.normFeature.max,
+        };
+        normalisedLabel = {
+          min: result.normLabel.min,
+          max: result.normLabel.max,
+        };
+
         trainingFeatureTensor = result.trainingFeatures;
         testingFeatureTensor = result.testingFeatures;
         trainingLabelTensor = result.trainingLabels;
@@ -236,10 +248,10 @@
       }
       loadData();
 
+      // Lab 7.2: plot tilpasset til at modtage en valgfri predicted series
       async function plot(pointsArray, featureName, predictedPointsArray = null) {
-        const values = [pointsArray.slice(0, 1000)];
+        const values = [pointsArray];
         const series = ["original"];
-
         if (Array.isArray(predictedPointsArray)) {
           values.push(predictedPointsArray);
           series.push("predicted");
@@ -255,20 +267,15 @@
         );
       }
 
+      // Lab 7.2: tegner en predictions-linje baseret på modellens nuværende vægte
       async function plotPredictionLine() {
         const [xs, ys] = tf.tidy(() => {
           const normalisedXs = tf.linspace(0, 1, 100);
           const normalisedYs = model.predict(normalisedXs.reshape([100, 1]));
-          const xs = denormalise(
-            normalisedXs,
-            normalisedFeature.min,
-            normalisedFeature.max,
-          );
-          const ys = denormalise(
-            normalisedYs,
-            normalisedLabel.min,
-            normalisedLabel.max,
-          );
+
+          const xs = denormalise(normalisedXs, normalisedFeature.min, normalisedFeature.max);
+          const ys = denormalise(normalisedYs, normalisedLabel.min, normalisedLabel.max);
+
           return [xs.dataSync(), ys.dataSync()];
         });
 
@@ -277,43 +284,22 @@
           y: ys[i],
         }));
 
-        await plot(points, "Square feet", predictedPoints);
+        await plot(points, "Square Feet", predictedPoints);
       }
 
-      // Lab 7.3 Part 1: sigmoid activation på første lag
-      // Lab 7.3 Part 2: hidden layer + output layer tilføjet
       function createModel() {
         const model = tf.sequential();
 
-        // Input/hidden lag 1
         model.add(
           tf.layers.dense({
             inputDim: 1,
-            units: 5,
-            activation: "sigmoid",
-            useBias: true,
-          }),
-        );
-
-        // Hidden lag 2 (Part 2)
-        model.add(
-          tf.layers.dense({
-            units: 5,
-            activation: "sigmoid",
-            useBias: true,
-          }),
-        );
-
-        // Output lag med 1 node (Part 2) — skal tilføjes sidst
-        model.add(
-          tf.layers.dense({
             units: 1,
-            activation: "sigmoid",
+            activation: "linear",
             useBias: true,
           }),
         );
 
-        const optimizer = tf.train.adam();
+        const optimizer = tf.train.sgd(0.1);
 
         model.compile({
           loss: "meanSquaredError",
@@ -324,16 +310,17 @@
       }
 
       function trainModel(model, trainingFeatureTensor, trainingLabelTensor) {
-        const { onEpochEnd } = tfvis.show.fitCallbacks(
+        const { onBatchEnd, onEpochEnd } = tfvis.show.fitCallbacks(
           { name: "Training Performance" },
           ["loss"],
         );
 
         return model.fit(trainingFeatureTensor, trainingLabelTensor, {
-          epochs: 100,
+          epochs: 20,
           shuffle: true,
           callbacks: {
             onEpochEnd,
+            // Lab 7.2: plot prediction line ved starten af hver epoch
             onEpochBegin: async function () {
               await plotPredictionLine();
               tfvis.show.layer(
@@ -343,18 +330,6 @@
             },
           },
         });
-      }
-
-      // Lab 7.3: plotParams virker kun på et enkelt-lags model (Part 1).
-      // Med multi-lag model (Part 2) passer shapes ikke — beholdt til reference.
-      async function plotParams(weight, bias) {
-        model.getLayer(null, 0).setWeights([
-          tf.tensor2d([[weight]]),
-          tf.tensor1d([bias]),
-        ]);
-        await plotPredictionLine();
-        const layer = model.getLayer(undefined, 0);
-        tfvis.show.layer({ name: "Layer 1" }, layer);
       }
 
       function testModel(model, testingFeatureTensor, testingLabelTensor) {
@@ -368,6 +343,7 @@
           `Testing Loss: ${loss}`;
       }
 
+      // Lab 7.2: normalise tilpasset til at modtage tidligere min/max
       function normalise(tensor, previousMin = null, previousMax = null) {
         const min = previousMin || tensor.min();
         const max = previousMax || tensor.max();
@@ -386,33 +362,38 @@
       async function train() {
         model = createModel();
         await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
-        await plotPredictionLine();
         document.getElementById("model-status").innerText = "Training complete";
         document.getElementById("test-button").disabled = false;
-        document.getElementById("save-button").disabled = false;
+
+        // Lab 7.2: aktiver predict-knap og tegn linje efter træning
         document.getElementById("predict-button").removeAttribute("disabled");
+        await plotPredictionLine();
       }
 
       async function test() {
-        await testModel(model, testingFeatureTensor, testingLabelTensor);
+        testModel(model, testingFeatureTensor, testingLabelTensor);
+        // Lab 7.2: rettet typo "prdict-button" → "predict-button"
         document.getElementById("predict-button").disabled = false;
       }
 
       async function load() {
         model = await tf.loadLayersModel("localstorage://house-price-model");
-        console.log(model);
-        await plotPredictionLine();
-        document.getElementById("predict-button").removeAttribute("disabled");
         document.getElementById("test-button").disabled = false;
         document.getElementById("save-button").disabled = false;
         document.getElementById("model-status").innerText = "Model loaded";
+
+        // Lab 7.2: aktiver predict-knap og tegn linje efter indlæsning
+        document.getElementById("predict-button").removeAttribute("disabled");
+        await plotPredictionLine();
       }
 
       async function save() {
         await model.save("localstorage://house-price-model");
+        document.getElementById("save-button").disabled = false;
         document.getElementById("model-status").innerText = "Model saved";
       }
 
+      // Lab 7.2: predict implementeret
       function predict() {
         const predictionInput = parseInt(
           document.getElementById("prediction-input").value,
@@ -438,7 +419,7 @@
             const outputValue = outputTensor.dataSync()[0];
             document.getElementById("prediction-output").innerHTML =
               `The predicted house price is: <br />` +
-              `<span style="font-size:2em">\$${(outputValue / 1000).toFixed(0) * 1000}</span>`;
+              `<span style="font-size: 2em">$${(outputValue / 1000).toFixed(0) * 1000}</span>`;
           });
         }
       }
