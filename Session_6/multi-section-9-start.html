@@ -149,9 +149,7 @@
         const xTicks = await xTicksPromise;
         const yTicks = await yTicksPromise;
         const xTickLabels = xTicks.map((v) => (v / 1000).toFixed(1) + "k sqft");
-        const yTickLabels = yTicks.map(
-          (v) => "$" + (v / 1000).toFixed(0) + "k",
-        );
+        const yTickLabels = yTicks.map((v) => "$" + (v / 1000).toFixed(0) + "k");
 
         tf.unstack(values, 2).forEach((values, i) => {
           const data = {
@@ -164,19 +162,13 @@
             {
               name: `Bedrooms: ${getClassName(i)} (local)`,
               tab: "Predictions",
-            },
-            data,
-            { height: size },
-          );
+            }, data, { height: size });
 
           tfvis.render.heatmap(
             {
               name: `Bedrooms: ${getClassName(i)} (full domain)`,
               tab: "Predictions",
-            },
-            data,
-            { height: size, domain: [0, 1] },
-          );
+            }, data, { height: size, domain: [0, 1] });
         });
       }
 
@@ -223,12 +215,7 @@
       function createModel() {
         model = tf.sequential();
         model.add(
-          tf.layers.dense({
-            units: 10,
-            useBias: true,
-            activation: "sigmoid",
-            inputDim: 2,
-          }),
+          tf.layers.dense({units: 10, useBias: true, activation: "sigmoid", inputDim: 2,}),
         );
         model.add(
           tf.layers.dense({ units: 10, useBias: true, activation: "sigmoid" }),
