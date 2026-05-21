@@ -52,14 +52,9 @@
           const normalisedFeature = normalize(featureTensor);
           const normalisedLabel = normalize(labelTensor);
 
-          const [trainingFeatures, testingFeatures] = tf.split(
-            normalisedFeature.tensor,
-            2,
-          );
-          const [trainingLabels, testingLabels] = tf.split(
-            normalisedLabel.tensor,
-            2,
-          );
+          const [trainingFeatures, testingFeatures] = tf.split(normalisedFeature.tensor, 2,);
+
+          const [trainingLabels, testingLabels] = tf.split(normalisedLabel.tensor, 2,);
 
           return {
             trainingFeatures,
@@ -82,13 +77,14 @@
         );
 
         // Træn model - Session 3 Lab 6.1
-        await trainModel(model, result.trainingFeatures, result.trainingLabels);
+        console.time("Model training");
+        const trainModelResult = await trainModel(model, trainModelResult.trainingFeatures, trainModelResult.trainingLabels);
+        const trainingLoss = trainModelResult.history.loss.pop();
+        console.timeEnd("Final training losss: " + trainingLoss);
+        console.timeEnd("Model training");
 
         // Test model - Session 3 Lab 6.1
         await testModel(model, result.testingFeatures, result.testingLabels);
-
-
-
       }
       run();
 
@@ -143,7 +139,7 @@
         );
 
         return model.fit(trainingFeatureTensor, trainingLabelTensor, {
-          epochs: 20,
+          epochs: 5,
           shuffle: true,
           callbacks: {
             onBatchEnd,
