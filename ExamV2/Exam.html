@@ -162,8 +162,8 @@
        * TRAINMODEL — træner modellen på data
        *
        * Parametre:
-       *   trainingFeatureTensor: 50% af højde-data (input) — modellen lærer på disse
-       *   trainingLabelTensor:   50% af vægt-data (rigtige svar) — modellen skal ramme disse
+       *   trainingFeatureTensor: 50% af højde-data (input) — modellen lærer på disse - kommer fra tf.split() i run
+       *   trainingLabelTensor:   50% af vægt-data (rigtige svar) — modellen skal ramme disse - kommer fra tf.split() i run
        *
        * model.fit() kører selve træningsloopet:
        *   batchSize: 34     → data opdeles i bidder på 34 før vægtene justeres
@@ -429,16 +429,19 @@
           1,
         ]);
 
-        // Extract Labels (outputs)
+        // Samme for labels (vægt)
         const labelValues = points.map((p) => p.y);
         const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
 
         // Normalise features and labels
         normalisedFeature = normalise(featureTensor);
         normalisedLabel = normalise(labelTensor);
+
+        // disposer originale tensors for at frigøre RAM — vi bruger kun normaliserede versioner fremover
         featureTensor.dispose();
         labelTensor.dispose();
 
+        // Split data into training and testing sets (50/50 split)
         [trainingFeatureTensor, testingFeatureTensor] = tf.split(
           normalisedFeature.tensor,
           2,
@@ -448,7 +451,7 @@
           2,
         );
 
-        // Update status and enable train button
+        // Opdater UI og aktiver knappen Train
         //document.getElementById("model-status").innerHTML = "No model trained";
         document.getElementById("model-status").innerHTML = `No model trained - showing ${selectedGender} data`;
         document.getElementById("train-button").removeAttribute("disabled");
