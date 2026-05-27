@@ -397,13 +397,6 @@
         // Import from CSV
         const houseSalesDataset = tf.data.csv("weight-height.csv");
 
-        // Extract x and y values to plot, converting units to cm and kg
-        /*const pointsDataset = houseSalesDataset.map((record) => ({
-          x: record.Height * 2.54,
-          y: record.Weight * 0.45359237,
-        }));
-        */
-
         // Filtrer data baseret på valgt køn
        const pointsDataset = houseSalesDataset
         .filter((record) => record.Gender === selectedGender)
@@ -418,6 +411,7 @@
           points.pop(); // remove one element
         }
 
+        // Datasæt shuffles så model ikke lære så hurtig - minimere overfitting 
         tf.util.shuffle(points);
         
         plot(points, "Height");
